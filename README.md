@@ -12,6 +12,7 @@ send message to topic named queue-1
 curl -XPOST "https://127.0.0.1:8712/queue-1"
 
 Consumer:
+
 curl "https://127.0.0.1:8712/queue-1"
 
 
