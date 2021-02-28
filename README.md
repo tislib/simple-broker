@@ -31,3 +31,10 @@ curl -H "Accept-Group: group1" "https://127.0.0.1:8712/queue-1"
 
 Topic Design notes:[link](design/topic-design.md)
 Topic Design notes:[link](design/design.md)
+
+
+curl "https://localhost:1678/users" --insecure
+
+curl "https://localhost:1678/users/15/orders" --insecure
+
+curl -XPOST --data '{"data": 124}' "https://localhost:1678/users/15/orders" --insecure
