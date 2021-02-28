@@ -16,6 +16,12 @@ Consumer:
 curl "https://127.0.0.1:8712/queue-1"
 
 
+Consumer group (like kafka consumer groups)
+
+curl -H "Accept-Group: group1" "https://127.0.0.1:8712/queue-1"
+
+
+
 <br/>
 <br/>
 <br/>
@@ -24,3 +30,4 @@ curl "https://127.0.0.1:8712/queue-1"
 
 
 Topic Design notes:[link](design/topic-design.md)
+Topic Design notes:[link](design/design.md)

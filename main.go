@@ -1,9 +1,17 @@
 package main
 
-import "log"
+import (
+	app2 "backend-processor/app"
+)
 
 func main() {
-	log.Print("initial commit")
+	app := app2.App{}
+	app.Addr = ":1678"
+
+	app.CertFile = "server.crt"
+	app.KeyFile = "server.key"
+
+	app.Run()
 }
 
 func Add(a int, b int) int {
