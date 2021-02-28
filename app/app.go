@@ -4,10 +4,13 @@ import (
 	"backend-processor/model"
 	"encoding/json"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"reflect"
+	"strings"
 	"sync"
+	"time"
 )
 
 type App struct {
@@ -28,6 +31,8 @@ func (app *App) Run() {
 }
 
 func (app *App) init() {
+	log.SetLevel(log.DebugLevel)
+
 	app.channel = make(map[string]chan *model.Record)
 	app.bufferSize = 10000
 	app.brokerId = uuid.NewString()
@@ -51,7 +56,7 @@ func (app *App) writeMessage(r *http.Request, w http.ResponseWriter) {
 	channel := app.getChannel(channelName)
 	recordData := new(model.RecordData)
 	record := new(model.Record)
-	record.Data = recordData
+	record.Message = recordData
 	record.BrokerId = app.brokerId
 	record.MessageId = uuid.NewString()
 
@@ -70,6 +75,25 @@ func (app *App) writeMessage(r *http.Request, w http.ResponseWriter) {
 	}
 
 	channel <- record
+
+	content, err := json.Marshal(record)
+	content = append(content, 10)
+
+	if err != nil {
+		app.handleError(err, w)
+		return
+	}
+
+	_, err = w.Write(content)
+
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
+	if err != nil {
+		app.handleError(err, w)
+		return
+	}
 }
 
 func (app *App) handleError(err error, w http.ResponseWriter) {
@@ -81,13 +105,19 @@ func (app *App) handleError(err error, w http.ResponseWriter) {
 
 func (app *App) readMessage(r *http.Request, w http.ResponseWriter) {
 	channelName := app.getChannelNameFromRequest(r)
+	consumerId := uuid.NewString()
 
-	channel := app.getChannel(channelName)
 	var record *model.Record
 
 	for {
-		record = <-channel
+		record = app.listenMessage(channelName, consumerId)
 
+		if record == nil {
+			log.Debugf("no message received for consumer: %s", consumerId)
+			continue
+		}
+
+		record.ConsumerId = consumerId
 		content, err := json.Marshal(record)
 		content = append(content, 10)
 
@@ -106,6 +136,38 @@ func (app *App) readMessage(r *http.Request, w http.ResponseWriter) {
 			app.handleError(err, w)
 			return
 		}
+	}
+}
+
+func (app *App) listenMessage(name string, consumerId string) *model.Record {
+	var cases []reflect.SelectCase
+
+	for channelName := range app.channel {
+		if channelName == name || strings.HasPrefix(channelName, name) {
+			ch := app.channel[channelName]
+
+			log.Debugf("starting to listen channel: %s / %s", channelName, consumerId)
+
+			cases = append(cases, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(ch),
+			})
+		}
+	}
+
+	cases = append(cases, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(time.After(2 * time.Second)),
+	})
+
+	_, res, _ := reflect.Select(cases)
+
+	val := res.Interface()
+
+	if reflect.TypeOf(val) == reflect.TypeOf(time.Time{}) {
+		return nil
+	} else {
+		return val.(*model.Record)
 	}
 }
 
